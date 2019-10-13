@@ -32,4 +32,4 @@ recv->bin->Frame->oddcheck()->checkXor()->Frame2bin()->bin2bytes()->bytes2text()
 
 sender: send->recv->send
 
-recver : recv->send : ack->recv
+recver : recv->send : ack->recv()
