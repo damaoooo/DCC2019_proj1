@@ -22,6 +22,8 @@
 
 或者是采用16\*16+2*16 = 288bit，由于UTF-8编码问题有ASCII字符是8bit，所以就可能会出现只有8bit而不是16bit，就采用在最后面加入8个0的方式进行区分
 
+层与层之间直接采用List的方式传帧，[[],[],[]]的方式
+
 数据链路层：
 
 text->text2Bytes()->bytes2Bin()->bin2Frames()->Frame->oddcheck->bin->bytes->send
