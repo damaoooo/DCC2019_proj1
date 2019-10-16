@@ -1,19 +1,19 @@
 class method():
-    def oddCheck():
+    def oddCheck(self):
         pass
-    def bytes2Bin():
+    def bytes2Bin(self):
         pass
-    def bin2Frames():
+    def bin2Frames(self):
         pass
-    def frames2Bin():
+    def frames2Bin(self):
         pass
-    def bin2Bytes():
+    def bin2Bytes(self):
         pass
-    def text2Bytes():
+    def text2Bytes(self):
         pass
-    def bytes2Text():
+    def bytes2Text(self):
         pass
-    def addXorCheck():
+    def addXorCheck(self):
         pass
 class Unit(method):
     mode = 0
@@ -22,16 +22,16 @@ class Unit(method):
     def start(self):
         pass
     class tcpLayer():
-        def controlCenter():
+        def controlCenter(self):
             pass
-        def recvFrame():
+        def recvFrame(self):
             pass
-        def sendFrams():
+        def sendFrams(self):
             pass
-        def checkXor():
+        def checkXor(self):
             pass
     class dataLayer():
-        def wrapFrame():
+        def wrapFrame(self):
             pass
-        def parseFrame():
+        def parseFrame(self):
             pass
