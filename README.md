@@ -4,18 +4,21 @@
 |-- Python 项目二
 	|-- Unit 网元
 		|-- tcpLayer网络层
-			checkXor(str:text)->bool:res
+			|--controlCenter()
+			|--recvFrame()->list:frame
+			|--sendFrame(str:text)->void
+			|--checkXor(list:Frame)->bool:res
 		|-- dataLayer 数据链路层
 			|-- wrapFrame(rawFrames)->list:Frames
 			|-- parseFrame(recvFrames)->list:checkedFrames
 	|-- method 方法
 		|--Oddcheck(list:Frames)->list:result[[row],[crowd]]
 		|--bytes2Bin(bytestr:bytes)->str:rawBin
-		|--bin2Frames(str:bindata,mode)->list:Frames//mode->1.encode 2.decode
+		|--bin2Frames(str:bindata)->list:Frame
 		|--frames2Bin(list:Frames)->str:rawBin
 		|--bin2Bytes(str:rawBin)->bytes:bytes
 		|--text2Bytes(str:bytes)->str:bytes
-		|--addXorCheck(str:text)->str:text
+		|--addXorCheck(list:Frame)->str:text
 ```
 
 ## 设计
