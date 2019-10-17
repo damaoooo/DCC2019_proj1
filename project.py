@@ -40,10 +40,21 @@ class method():
         if(res==[] or tempFrame!=res[-1]):
             res.append(tempFrame)
         return res
-    def frames2Bin(self):
-        pass
-    def bin2Bytes(self):
-        pass
+    def frames2Bin(self,frames):
+        res = ''
+        for oneFrame in frames:
+            for i in oneFrame:
+                res+=i
+        return res
+    def bin2Bytes(self,binText):
+        res = b''
+        length = len(binText)
+        while(length>0):
+            singleByte = unhexlify(hex(eval('0b'+binText[0:4]))[2:]+hex(eval('0b'+binText[4:8]))[2:])
+            res+=singleByte
+            binText = binText[8:]
+            length-=8
+        return res
     def text2Bytes(self):
         pass
     def bytes2Text(self):
