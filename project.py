@@ -1,8 +1,7 @@
 from os import system
 import time
 from binascii import unhexlify
-
-
+import socket
 
 class method():
     def oddCheck(self,checkUnit):
@@ -55,17 +54,22 @@ class method():
             binText = binText[8:]
             length-=8
         return res
-    def text2Bytes(self):
-        pass
-    def bytes2Text(self):
-        pass
-    def addXorCheck(self):
-        pass
+    def text2Bytes(self,text):
+        return text.encode()
+    def bytes2Text(self,bytesText):
+        return bytesText.decode()
+    def addXorCheck(self,Frame):
+        sumxor = 0
+        for onebyte in Frame:
+            sumxor ^=eval('0b'+onebyte)
+        return bin(sumxor)[2:].zfill(8)
 class Unit(method):
     mode = 0
     local = 0
     dest = 0
     def start(self):
+        pass
+    def send(self,Text):
         pass
     class tcpLayer(method):
         def controlCenter(self):

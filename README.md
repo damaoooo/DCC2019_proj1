@@ -3,6 +3,11 @@
 ```
 |-- Python 项目二
 	|-- Unit 网元
+		local->tuple
+		dest->tuple
+		|--start()
+		|--send()
+		|--receive()
 		|-- tcpLayer网络层
 			|--controlCenter()
 			|--recvFrame()->list:frame
