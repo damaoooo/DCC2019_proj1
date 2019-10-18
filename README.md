@@ -14,8 +14,8 @@
 			|--sendFrame(str:text)->void
 			|--checkXor(list:Frame)->bool:res
 		|-- dataLayer 数据链路层
-			|-- wrapFrame(rawFrames)->list:Frames
-			|-- parseFrame(recvFrames)->list:checkedFrames
+			|-- wrapChunk(rawFrames)->list:Frames
+			|-- parseChunk(recvFrames)->list:checkedFrames
 	|-- method 方法
 		|--Oddcheck(list:Frames)->list:result[[row],[crowd]]
 		|--bytes2Bin(bytestr:bytes)->str:rawBin
@@ -223,4 +223,8 @@ recver : recv->send : ack->recv()
 客户端
 
 ----开始接受一个帧（有很短的超时限制）---->检验是否为坏帧---->发送`ACK n` 或者是`ARQ n` 
+
+---
+
+**物理层UDP模拟软件限制，无法使用TCP模式连接，只能用UDP来模拟TCP**
 

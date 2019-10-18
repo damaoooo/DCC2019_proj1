@@ -14,8 +14,7 @@ class method():
                 num = int(listBytes[singleBitIndex])
                 rowRes[singleByteIndex]^=num
                 colunmRes[singleBitIndex]^=num
-        return [''.join([str(x) for x in rowRes]),''.join([str(y) for y in colunmRes])]
-            
+        return [''.join([str(x) for x in rowRes]),''.join([str(y) for y in colunmRes])]     
     def bytes2Bin(self,Bytes):
         binres = ''
         for i in Bytes:
@@ -67,54 +66,74 @@ class Unit(method):
     mode = 0
     local = 0
     dest = 0
-    recvsockets = []
-    sendsockets = []
+    sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    sk.settimeout(5)
     def start(self):
-        sk = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        sk.settimeout(5)
-        localIp = input('input your IP->')
-        localPort = input('input your port->')
-        self.local = (localIp,int(localPort))
-        sk.bind(self.local)
-        mode = int(input('mode:1.server 2.client->'))
-        if(mode == 2):
-            destIp = input('input oppsite IP->')
-            destPort = input('input oppsite port->')
+        mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
+        if(mode == 3):
+            localIp = input('input your IP->')
+            localPort = input('input your Port->')
+            self.local = (localIp,int(localPort))
+            self.sk.bind(self.local)
+            destIp = input('input opposite IP->')
+            destPort = input('input opposite Port->')
             self.dest = (destIp,int(destPort))
-            print('try to connect...')
-            try:
-                sk.connect(self.dest)
-                print('connect success!')
-            except:
-                print('connect Failed ...')
-                return 
         elif(mode == 1):
-            sk.listen(1)
-            print('waiting for connection...')
-            connection,client_address = sk.accept()
-            connection.setblocking(0)
-            connection.settimeout(5)
-            print('connection established!',client_address,'is connected!')
-
-    def send(self,Text):
-        pass
+            self.local = ('127.0.0.1',11400)
+            self.dest = ('127.0.0.1',11100)
+            self.sk.bind(self.local)
+        elif(mode == 2):
+            self.local = ('127.0.0.1',12400)
+            self.dest = ('127.0.0.1',12100)
+            self.sk.bind(self.local)
     class tcpLayer(method):
-        def controlCenter(self):
-            pass
+        frameIndexHead = 0
+        frameIndexEnd = -1
+        frameNumber = 0
+        def sendControlCenter(self,rawBins):
+            Frames = method.bin2Frames(self,rawBins,386)
+            self.frameIndexHead,self.frameIndexEnd = 0,len(Frames)
+            for i in Frames:
+                i = self.getHeaders()+i+[method.addXorCheck(self,i)]
+        def getHeaders(self):
+            sourceIp,sourcePort = self.local[0],self.local[1]
+            destIp,destPort = self.dest[0],self.dest[1]
+            Number = self.frameNumber
+            res =  []
+            temp = ''
+            res.append(bin(Number)[2:].zfill(8))
+            for i in sourceIp.split('.'):
+                res.append(bin(int(i))[2:].zfill(8))
+            portbin = bin(sourcePort)[2:].zfill(16)
+            res.append(portbin[0:8])
+            res.append(portbin[8:])
+            for i in destIp.split('.'):
+                res.append(bin(int(i))[2:].zfill(8))
+            portbin = bin(destPort)[2:].zfill(16)
+            res.append(portbin[0:8])
+            res.append(portbin[8:])
+            return res
         def recvFrame(self):
             pass
-        def sendFrams(self):
+        def sendFrames(self):
             pass
         def checkXor(self,oneFrame):
             xorCheck = method.addXorCheck(self,oneFrame)
             recvXorCheck = oneFrame.pop(-1)
             return (xorCheck == recvXorCheck)
     class dataLayer():
-        def wrapFrame(self):
+        def wrapChunk(self):
             pass
-        def parseFrame(self):
+        def parseChunk(self):
             pass
+    def send(self,Text):
+        bytesText = method.text2Bytes(self,Text)
+        binText = method.bytes2Bin(self,bytesText)
+        self.tcpLayer.sendControlCenter(self,binText)
 
-A = method()
-checkUnit = ['11110000','10101010','11111111','00000000','01011010','11001100','00110011','10011001']
-print(A.oddCheck(checkUnit))
+
+if(__name__ == '__main__'):
+    A = Unit()
+    A.start()
+    text = 'hello world!'
+    A.send(text)
