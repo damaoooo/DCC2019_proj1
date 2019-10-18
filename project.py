@@ -2,7 +2,7 @@ from os import system
 import time
 from binascii import unhexlify
 import socket
-
+import select
 class method():
     def oddCheck(self,checkUnit):
         rowRes = [0]*8
@@ -67,8 +67,34 @@ class Unit(method):
     mode = 0
     local = 0
     dest = 0
+    recvsockets = []
+    sendsockets = []
     def start(self):
-        pass
+        sk = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        sk.settimeout(5)
+        localIp = input('input your IP->')
+        localPort = input('input your port->')
+        self.local = (localIp,int(localPort))
+        sk.bind(self.local)
+        mode = int(input('mode:1.server 2.client->'))
+        if(mode == 2):
+            destIp = input('input oppsite IP->')
+            destPort = input('input oppsite port->')
+            self.dest = (destIp,int(destPort))
+            print('try to connect...')
+            try:
+                sk.connect(self.dest)
+                print('connect success!')
+            except:
+                print('connect Failed ...')
+                return 
+        elif(mode == 1):
+            sk.listen(1)
+            print('waiting for connection...')
+            connection,client_address = sk.accept()
+            connection.setblocking(0)
+            connection.settimeout(5)
+            
     def send(self,Text):
         pass
     class tcpLayer(method):
@@ -78,8 +104,10 @@ class Unit(method):
             pass
         def sendFrams(self):
             pass
-        def checkXor(self):
-            pass
+        def checkXor(self,oneFrame):
+            xorCheck = method.addXorCheck(self,oneFrame)
+            recvXorCheck = oneFrame.pop(-1)
+            return (xorCheck == recvXorCheck)
     class dataLayer():
         def wrapFrame(self):
             pass
