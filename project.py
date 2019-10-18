@@ -94,7 +94,7 @@ class Unit(method):
             Frames = method.bin2Frames(self,rawBins,386)
             self.frameIndexHead,self.frameIndexEnd = 0,len(Frames)
             for i in Frames:
-                i = self.getHeaders()+i+[method.addXorCheck(self,i)]
+                self.sendFrames(i)
         def getHeaders(self):
             sourceIp,sourcePort = self.local[0],self.local[1]
             destIp,destPort = self.dest[0],self.dest[1]
@@ -115,8 +115,9 @@ class Unit(method):
             return res
         def recvFrame(self):
             pass
-        def sendFrames(self):
-            pass
+        def sendFrames(self,oneFrame):
+            Frame = self.getHeaders()+oneFrame+[method.addXorCheck(self,oneFrame)]
+            
         def checkXor(self,oneFrame):
             xorCheck = method.addXorCheck(self,oneFrame)
             recvXorCheck = oneFrame.pop(-1)
