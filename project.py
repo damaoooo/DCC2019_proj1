@@ -99,14 +99,15 @@ class Unit(method):
             self.local = ('127.0.0.1',12400)
             self.dest = ('127.0.0.1',12100)
             self.sk.bind(self.local)
-        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk,self.st)
     class tcpLayer(method):
-        frameLength,frameNumber,local,dest,sendSocket = 0,0,0,0,0
+        frameLength,frameNumber,local,dest,sendSocket,statusSocket = 0,0,0,0,0,0
         beginWindow,endWindow = 0,0
-        def __init__(self,local,dest,sendsocket,*argc,**kwargs):
+        def __init__(self,local,dest,sendsocket,statussocket,*argc,**kwargs):
             self.local = local
             self.dest = dest
             self.sendSocket = sendsocket
+            self.statusSocket = statussocket
         def getHeaders(self):
             sourceIp,sourcePort = self.local[0],self.local[1]
             destIp,destPort = self.dest[0],self.dest[1]
@@ -130,7 +131,7 @@ class Unit(method):
             Frame = self.getHeaders()+oneFrame+[method.addXorCheck(self,oneFrame)]
             return Frame
         def checkXor(self,oneFrame):
-            xorCheck = method.addXorCheck(self,oneFrame)
+            xorCheck = method.addXorCheck(self,oneFrame[:-1])
             recvXorCheck = oneFrame.pop(-1)
             return (xorCheck == recvXorCheck)
         def wrapChunk(self,oneFrame):
@@ -184,13 +185,8 @@ class Unit(method):
         def sendControlCenter(self,rawBins):
             Frames = self.bin2Frames(rawBins,386)
             self.frameLength = len(Frames)
-            self.beginWindow = 0
-            if(self.frameLength>8):
-                self.endWindow = 7
-            else:
-                self.endWindow = self.frameLength-1
             while(Frames!=[]):
-                if(self.tcp.frameNumber<min(8,len(Frames))):
+                if(self.tcp.frameNumber<min(8,self.frameLength)):
                     self.tcp.sendSingleFrame(Frames[self.tcp.frameNumber])
                     print(Frames[self.tcp.frameNumber])
                     self.tcp.frameNumber+=1
@@ -202,7 +198,9 @@ class Unit(method):
         def recvControlCenter(self,rawBin):
             sourceIp,sourcePort,destIp,destPort = 0,0,0,0
             frameNumber,xorCheckRecv = 0
+            bytesText = b''
             Frames = self.bin2Frames(rawBin,400)
+            status = []
             for oneFrames in Frames:
                 afterParse = self.parseChunk()
                 frameNumber = eval('0b'+afterParse[0])
@@ -215,18 +213,32 @@ class Unit(method):
                 destIp = '.'.join([str(eval('0b'+x)) for x in destIp])
                 destPort = eval('0b'+destPort[0]+destPort[1])
                 afterParse = afterParse[6:]
-                isBad = self.checkXor(afterParse[:-1])
+                isBad = self.checkXor(afterParse)
+                if(isBad==False):
+                    status.append('ERR.'+str(frameNumber))
+                    return bytesText,status
+                binText = self.frames2Bin(afterParse)
+                bytesText += self.bin2Bytes(binText)
+                status.append('ACK.'+str(frameNumber))
+            return bytesText,status
+
 
     def send(self,Text):
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
+        Frames = self.bin2Frames(binText,386)
         self.tcpLayer.sendControlCenter(self,binText)
     def recv(self):
-        rawBytes = sk.recv(1024)
-        rawBins = self.method.bytes2Bin(rawBytes)
-        afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
-        Text = self.tcpLayer.sendControlCenter(self,afterDirect)
-        
+        bytesText = b''
+        while(1):
+            rawBytes = self.sk.recv(40000)
+            rawBins = self.method.bytes2Bin(rawBytes)
+            afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
+            if(afterDirect==b'\xee\xdd\xff\xff\xdd\xee'):
+                break
+            onebytesText,status = self.tcpLayer.sendControlCenter(self,afterDirect)
+            self.st.sendall(('|'.join(status)).encode())
+            bytesText+=onebytesText
 
 if(__name__ == '__main__'):
     A = Unit()
