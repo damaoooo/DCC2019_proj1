@@ -4,6 +4,12 @@ from binascii import unhexlify
 import socket
 import select
 class method():
+    def findDiffrent(self,bytes1,bytes2):
+        res = []
+        for i in range(len(bytes1)):
+            if(bytes1[i]!=bytes2[i]):
+                res.append(i)
+        return res
     def oddCheck(self,checkUnit):
         rowRes = [0]*8
         colunmRes = [0]*8
@@ -62,9 +68,18 @@ class method():
         for onebyte in Frame:
             sumxor ^=eval('0b'+onebyte)
         return bin(sumxor)[2:].zfill(8)
+    def direction(self,text,keystart,keyend):
+        start = text.find(keystart)
+        end = text.find(keyend)
+        if(start!=-1 and end!=-1):
+            return text[start+len(keystart):end]
+        else:
+            return -1
 class Unit(method):
     mode,local,dest,tcp,datalink = 0,0,0,0,0
-    sk = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    st.setblocking(0)
     sk.settimeout(5)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
@@ -132,12 +147,38 @@ class Unit(method):
             afterFrame = self.wrapFrames(oneFrame)
             afterChunk = self.wrapChunk(afterFrame)
             sendBin = self.frames2Bin(afterChunk)
-            sendbytes = self.bin2Bytes(sendBin)
-            print(self.frameNumber)
+            sendbytes = b'\xee\xff'+self.bin2Bytes(sendBin)+b'\xff\xee'
+            #print(self.frameNumber)
             self.sendSocket.sendto(sendbytes,self.dest)
             
-        def parseChunk(self):
-            pass
+        def parseChunk(self,oneFrame):
+            chunks = []
+            while(oneFrame!=[]):
+                oneChunk = oneFrame[0:10]
+                chunks.append(oneChunk)
+                oneFrame = oneFrame[10:]
+            for chunkIndex in range(len(chunks)):
+                oddCheckRecv = chunks[chunkIndex][-2:]
+                data = chunks[chunkIndex][:-2]
+                selfCheck = self.oddCheck(data)
+                if(selfCheck == oddCheckRecv):
+                    chunks[chunkIndex]=data
+                    continue
+                else:
+                    diff = [self.findDiffrent(oddCheckRecv[0],selfCheck[0]),self.findDiffrent(oddCheckRecv[1],selfCheck[1])]
+                    x,y = diff[0],diff[1]
+                    if(len(x)+len(y)==1):
+                        chunks[chunkIndex] = data
+                        continue
+                    elif(len(x)==len(y)):
+                        for i in range(len(x)):
+                            data[x[i]][y[i]]^=1
+                chunks[chunkIndex] = data
+            res = []
+            for i in chunks:
+                res +=i
+            return res
+                        
         def sendBytes(self,bytesToSend):
             self.sendSocket.sendto(bytesToSend,self.dest)
         def sendControlCenter(self,rawBins):
@@ -157,15 +198,35 @@ class Unit(method):
                     status = self.tcp.sendSocket.recv(1024).decode()
                     self.tcp.frameNumber = 0
                     Frames = Frames[int(status.split(' ')[1]):]
-                
+            self.sendSocket('\xee\xff'+'FIN'.encode()+'\xff\xee',self.dest)
+        def recvControlCenter(self,rawBin):
+            sourceIp,sourcePort,destIp,destPort = 0,0,0,0
+            frameNumber,xorCheckRecv = 0
+            Frames = self.bin2Frames(rawBin,400)
+            for oneFrames in Frames:
+                afterParse = self.parseChunk()
+                frameNumber = eval('0b'+afterParse[0])
+                afterParse.pop(0)
+                sourceIp,sourcePort = afterParse[0:4],afterParse[4:6]
+                sourceIp = '.'.join([str(eval('0b'+x)) for x in sourceIp])
+                sourcePort = eval('0b'+sourcePort[0]+sourcePort[1])
+                afterParse = afterParse[6:]
+                destIp,destPort = afterParse[0:4],afterParse[4:6]
+                destIp = '.'.join([str(eval('0b'+x)) for x in destIp])
+                destPort = eval('0b'+destPort[0]+destPort[1])
+                afterParse = afterParse[6:]
+                isBad = self.checkXor(afterParse[:-1])
 
-                    
     def send(self,Text):
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
         self.tcpLayer.sendControlCenter(self,binText)
-    def recv(self)
-        pass
+    def recv(self):
+        rawBytes = sk.recv(1024)
+        rawBins = self.method.bytes2Bin(rawBytes)
+        afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
+        Text = self.tcpLayer.sendControlCenter(self,afterDirect)
+        
 
 if(__name__ == '__main__'):
     A = Unit()
