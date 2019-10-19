@@ -96,10 +96,10 @@ class Unit(method):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
             self.st.bind(('127.0.0.1',34566))
-            self.st.listen(1)
+            self.st.listen(5)
             print('waiting for connection...')
-            conn,addr = self.st.accept()
-            print(addr,'is connected!')
+            self.conn,self.addr = self.st.accept()
+            print(self.addr,'is connected!')
             self.sk.bind(self.local)
         elif(mode == 2):
             self.local = ('127.0.0.1',12400)
@@ -219,15 +219,14 @@ class Unit(method):
                 self.tcpLayer.sendControlCenter(self,wrappedFrames)
                 frameNumber+=1
             else:
-                status = self.st.recv(1024).decode()
+                status = self.tcp.conn.recv(4000).decode()
                 status = status.split('|')[-1].split('.')
                 if(status[0]=='ERR'):
                     Frames = Frames[int(status[1]):]
                 elif(status[0]=='ACK'):
                     Frames = Frames[int(status[1])+1:]
                 frameNumber = 0
-        self.sk.send(b'\xee\xdd\xff\xff\xdd\xee')
-            
+        self.sk.sendto(b'\xee\xdd\xff\xff\xdd\xee',self.dest)
     def recv(self):
         bytesText = b''
         while(1):
@@ -237,7 +236,7 @@ class Unit(method):
             if(afterDirect==b'\xee\xdd\xff\xff\xdd\xee'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
-            self.st.sendall(('|'.join(status)).encode())
+            self.st.send(('|'.join(status)).encode())
             bytesText+=onebytesText
         return bytesText.encode()
 
