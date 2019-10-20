@@ -79,9 +79,9 @@ class Unit(method):
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    st.settimeout(30)
+    #st.settimeout(30)
     conn,addr = 0,0
-    sk.settimeout(5)
+    #sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
         if(mode == 3):
@@ -99,7 +99,7 @@ class Unit(method):
             self.st.listen(5)
             print('waiting for connection...')
             self.conn,self.addr = self.st.accept()
-            print(addr,'is connected!')
+            print(self.addr,'is connected!')
             self.sk.bind(self.local)
         elif(mode == 2):
             self.local = ('127.0.0.1',12400)
@@ -226,7 +226,7 @@ class Unit(method):
                 elif(status[0]=='ACK'):
                     Frames = Frames[int(status[1])+1:]
                 frameNumber = 0
-        self.sk.sendto(b'\xee\xdd\xff\xff\xdd\xee',self.dest)
+        self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
             
     def recv(self):
         bytesText = b''
@@ -234,16 +234,16 @@ class Unit(method):
             rawBytes = self.sk.recv(5000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
-            if(afterDirect==b'\xee\xdd\xff\xff\xdd\xee'):
+            if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
-            self.st.send(('|'.join(status)).encode())
+            self.st.send(('|'+'|'.join(status)+'|').encode())
             bytesText+=onebytesText
-            print(bytesText.decode())
-        return bytesText.encode()
+        return bytesText.decode()
 
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    text = '我初学时对类的理解是从类的字面上，可以片面的认为它是一个种类，它是相似特征的抽像，也就是相似的东西，可以把相似特征的事务抽象成一个类。（事务可以是具体的物体或行为）以圆为例，圆是具有圆周率(pi)和半径(r)两个相似特征的属性。根据相似特征抽象出圆类，每个圆的半径可以不同，那么半径可以作为圆的实例属性；而每个圆的圆周率pi是相同的，那么圆周率pi就可以作为类属性，这样就定义出了一个圆类。而我们要知道圆的面积，周长等可以通过类方法计算出来。（看完整篇文章，还是对类不理解，回过头在来看这部分，对照列子多理解。）'
-    print(A.recv())
+    text = ''
+    s = A.recv()
+    print(s)
