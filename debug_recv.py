@@ -199,6 +199,7 @@ class Unit(method):
                 destPort = eval('0b'+destPort[0]+destPort[1])
                 afterParse = afterParse[6:]
                 isBad = self.tcp.checkXor(afterParse)
+                #print(isBad,frameNumber)
                 if(isBad==False):
                     status.append('ERR.'+str(frameNumber))
                     return bytesText,status
@@ -231,7 +232,8 @@ class Unit(method):
     def recv(self):
         bytesText = b''
         while(1):
-            rawBytes = self.sk.recv(5000)
+            self.sk.settimeout(0.5)
+            rawBytes = self.sk.recv(50000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
             if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
@@ -239,6 +241,7 @@ class Unit(method):
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
             self.st.send(('|'+'|'.join(status)+'|').encode())
             bytesText+=onebytesText
+            #print(bytesText.decode())
         return bytesText.decode()
 
 if(__name__ == '__main__'):

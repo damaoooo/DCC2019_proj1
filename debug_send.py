@@ -16,6 +16,8 @@ class method():
         for singleByteIndex in range(len(checkUnit)):
             #row:行  colunm:列
             listBytes = list(checkUnit[singleByteIndex])
+            if(len(listBytes)>8):
+                a = input('test')
             for singleBitIndex in range(len(listBytes)):
                 num = int(listBytes[singleBitIndex])
                 rowRes[singleByteIndex]^=num
@@ -176,8 +178,7 @@ class Unit(method):
             return res
                         
         def sendControlCenter(self,oneFrame):
-            afterChrunk = self.tcpLayer.wrapChunk(self,oneFrame)
-            sendBin = self.frames2Bin(afterChrunk)
+            sendBin = self.frames2Bin(oneFrame)
             sendBytes = b'\xee\xff'+self.bin2Bytes(sendBin)+b'\xff\xee'
             self.tcp.sendSocket.sendto(sendBytes,self.dest)
         def recvControlCenter(self,rawBin):
@@ -212,24 +213,29 @@ class Unit(method):
         frameNumber = 0
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
-        Frames = self.bin2Frames(binText,386)
+        Frames = self.bin2Frames(binText,306)#40 Unit,400-40*2-14=
+        dataToSend = []
         while(Frames!=[]):
             if(frameNumber<min(8,len(Frames))):
                 headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
                 frame = Frames[frameNumber]
                 xorRes = [self.addXorCheck(frame)]
                 wrappedFrames = headers+frame+xorRes
-                self.tcpLayer.sendControlCenter(self,wrappedFrames)
+                wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
+                dataToSend+=wrappedFrames
                 frameNumber+=1
             else:
-                status = self.tcp.conn.recv(4000).decode()
-                status = status.split('|')[-1].split('.')
+                self.tcpLayer.sendControlCenter(self,dataToSend)
+                dataToSend = []
+                status = self.tcp.conn.recv(40000).decode()
+                status = status.split('|')[-2].split('.')
                 if(status[0]=='ERR'):
                     Frames = Frames[int(status[1]):]
                 elif(status[0]=='ACK'):
                     Frames = Frames[int(status[1])+1:]
                 frameNumber = 0
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
+        print('send is over...')
     def recv(self):
         bytesText = b''
         while(1):
@@ -246,5 +252,5 @@ class Unit(method):
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    text = 'this is a so lang lang long long world'*100
+    text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
     A.send(text)
