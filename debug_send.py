@@ -16,8 +16,6 @@ class method():
         for singleByteIndex in range(len(checkUnit)):
             #row:行  colunm:列
             listBytes = list(checkUnit[singleByteIndex])
-            if(len(listBytes)>8):
-                a = input('test')
             for singleBitIndex in range(len(listBytes)):
                 num = int(listBytes[singleBitIndex])
                 rowRes[singleByteIndex]^=num
@@ -81,9 +79,9 @@ class Unit(method):
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    #st.settimeout(30)
+    st.settimeout(30)
     conn,addr = 0,0
-    #sk.settimeout(30)
+    sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
         if(mode == 3):
@@ -94,6 +92,19 @@ class Unit(method):
             destIp = input('input opposite IP->')
             destPort = input('input opposite Port->')
             self.dest = (destIp,int(destPort))
+            sendOrRecv = int(input('1.send 2.receive->'))
+            if(sendOrRecv == 1):
+                self.st.bind(('127.0.0.1',34566))
+                self.st.listen(5)
+                print('waiting for connection...')
+                self.conn,self.addr = self.st.accept()
+                print(self.addr,'is connected!')
+                self.sk.bind(self.local)
+            elif(sendOrRecv == 2):
+                self.st.bind(('127.0.0.1',34567))
+                print('trying to connect...')
+                self.st.connect(('127.0.0.1',34566))
+                self.sk.bind(self.local)
         elif(mode == 1):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
@@ -181,14 +192,15 @@ class Unit(method):
             sendBin = self.frames2Bin(oneFrame)
             sendBytes = b'\xee\xff'+self.bin2Bytes(sendBin)+b'\xff\xee'
             self.tcp.sendSocket.sendto(sendBytes,self.dest)
+
         def recvControlCenter(self,rawBin):
             sourceIp,sourcePort,destIp,destPort = 0,0,0,0
-            frameNumber,xorCheckRecv = 0
+            frameNumber,xorCheckRecv = 0,0
             bytesText = b''
             Frames = self.bin2Frames(rawBin,400)
             status = []
             for oneFrames in Frames:
-                afterParse = self.parseChunk()
+                afterParse = self.tcp.parseChunk(oneFrames)
                 frameNumber = eval('0b'+afterParse[0])
                 afterParse.pop(0)
                 sourceIp,sourcePort = afterParse[0:4],afterParse[4:6]
@@ -199,7 +211,8 @@ class Unit(method):
                 destIp = '.'.join([str(eval('0b'+x)) for x in destIp])
                 destPort = eval('0b'+destPort[0]+destPort[1])
                 afterParse = afterParse[6:]
-                isBad = self.checkXor(afterParse)
+                isBad = self.tcp.checkXor(afterParse)
+                #print(isBad,frameNumber)
                 if(isBad==False):
                     status.append('ERR.'+str(frameNumber))
                     return bytesText,status
@@ -237,20 +250,35 @@ class Unit(method):
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
     def recv(self):
+        rawBytes = b''
         bytesText = b''
+        self.sk.settimeout(1000)
+        firstRecv = self.sk.recv(50000)
         while(1):
-            rawBytes = self.sk.recv(40000)
-            rawBins = self.method.bytes2Bin(rawBytes)
+            rawBytes = b''
+            if(firstRecv!=b''):
+                rawBytes+=firstRecv
+                firstRecv = b''
+            else:
+                self.sk.settimeout(2)
+                try:
+                    rawBytes += self.sk.recv(50000)
+                except:
+                    print('')
+            rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
-            if(afterDirect==b'\xad\xff\xda'):
+            if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
             self.st.send(('|'+'|'.join(status)+'|').encode())
             bytesText+=onebytesText
+            #print(bytesText.decode())
         return bytesText.decode()
 
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
+    #text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
+    text = input('input what you want to say:')
     A.send(text)
+    A.st.close()

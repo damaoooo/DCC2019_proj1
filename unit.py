@@ -81,7 +81,7 @@ class Unit(method):
     st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     st.settimeout(30)
     conn,addr = 0,0
-    sk.settimeout(5)
+    sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
         if(mode == 3):
@@ -96,10 +96,10 @@ class Unit(method):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
             self.st.bind(('127.0.0.1',34566))
-            self.st.listen(1)
+            self.st.listen(5)
             print('waiting for connection...')
-            conn,addr = self.st.accept()
-            print(addr,'is connected!')
+            self.conn,self.addr = self.st.accept()
+            print(self.addr,'is connected!')
             self.sk.bind(self.local)
         elif(mode == 2):
             self.local = ('127.0.0.1',12400)
@@ -176,18 +176,18 @@ class Unit(method):
             return res
                         
         def sendControlCenter(self,oneFrame):
-            afterChrunk = self.tcpLayer.wrapChunk(self,oneFrame)
-            sendBin = self.frames2Bin(afterChrunk)
+            sendBin = self.frames2Bin(oneFrame)
             sendBytes = b'\xee\xff'+self.bin2Bytes(sendBin)+b'\xff\xee'
             self.tcp.sendSocket.sendto(sendBytes,self.dest)
+
         def recvControlCenter(self,rawBin):
             sourceIp,sourcePort,destIp,destPort = 0,0,0,0
-            frameNumber,xorCheckRecv = 0
+            frameNumber,xorCheckRecv = 0,0
             bytesText = b''
             Frames = self.bin2Frames(rawBin,400)
             status = []
             for oneFrames in Frames:
-                afterParse = self.parseChunk()
+                afterParse = self.tcp.parseChunk(oneFrames)
                 frameNumber = eval('0b'+afterParse[0])
                 afterParse.pop(0)
                 sourceIp,sourcePort = afterParse[0:4],afterParse[4:6]
@@ -198,7 +198,8 @@ class Unit(method):
                 destIp = '.'.join([str(eval('0b'+x)) for x in destIp])
                 destPort = eval('0b'+destPort[0]+destPort[1])
                 afterParse = afterParse[6:]
-                isBad = self.checkXor(afterParse)
+                isBad = self.tcp.checkXor(afterParse)
+                #print(isBad,frameNumber)
                 if(isBad==False):
                     status.append('ERR.'+str(frameNumber))
                     return bytesText,status
@@ -212,37 +213,59 @@ class Unit(method):
         frameNumber = 0
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
-        Frames = self.bin2Frames(binText,386)
+        Frames = self.bin2Frames(binText,306)#40 Unit,400-40*2-14=
+        dataToSend = []
         while(Frames!=[]):
             if(frameNumber<min(8,len(Frames))):
-                wrappedFrames = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)+Frames[frameNumber]+[self.addXorCheck(Frames[frameNumber])]
-                self.tcpLayer.sendControlCenter(self,wrappedFrames)
+                headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
+                frame = Frames[frameNumber]
+                xorRes = [self.addXorCheck(frame)]
+                wrappedFrames = headers+frame+xorRes
+                wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
+                dataToSend+=wrappedFrames
                 frameNumber+=1
             else:
-                status = self.st.recv(1024).decode()
-                status = status.split('|')[-1].split('.')
+                self.tcpLayer.sendControlCenter(self,dataToSend)
+                dataToSend = []
+                status = self.tcp.conn.recv(40000).decode()
+                status = status.split('|')[-2].split('.')
                 if(status[0]=='ERR'):
                     Frames = Frames[int(status[1]):]
                 elif(status[0]=='ACK'):
                     Frames = Frames[int(status[1])+1:]
                 frameNumber = 0
-        self.sk.send(b'\xee\xdd\xff\xff\xdd\xee')
-            
+        self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
+        print('send is over...')
     def recv(self):
+        rawBytes = b''
         bytesText = b''
+        self.sk.settimeout(1000)
+        firstRecv = self.sk.recv(50000)
         while(1):
-            rawBytes = self.sk.recv(40000)
-            rawBins = self.method.bytes2Bin(rawBytes)
+            rawBytes = b''
+            if(firstRecv!=b''):
+                rawBytes+=firstRecv
+                firstRecv = b''
+            else:
+                self.sk.settimeout(2)
+                try:
+                    rawBytes += self.sk.recv(50000)
+                except:
+                    print('')
+            rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
-            if(afterDirect==b'\xee\xdd\xff\xff\xdd\xee'):
+            if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
-            self.st.sendall(('|'.join(status)).encode())
+            self.st.send(('|'+'|'.join(status)+'|').encode())
             bytesText+=onebytesText
-        return bytesText.encode()
+            #print(bytesText.decode())
+        return bytesText.decode()
 
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    text = '我初学时对类的理解是从类的字面上，可以片面的认为它是一个种类，它是相似特征的抽像，也就是相似的东西，可以把相似特征的事务抽象成一个类。（事务可以是具体的物体或行为）以圆为例，圆是具有圆周率(pi)和半径(r)两个相似特征的属性。根据相似特征抽象出圆类，每个圆的半径可以不同，那么半径可以作为圆的实例属性；而每个圆的圆周率pi是相同的，那么圆周率pi就可以作为类属性，这样就定义出了一个圆类。而我们要知道圆的面积，周长等可以通过类方法计算出来。（看完整篇文章，还是对类不理解，回过头在来看这部分，对照列子多理解。）'
+    #text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
+    text = input('input what you want to say:')
     A.send(text)
+    A.st.close()

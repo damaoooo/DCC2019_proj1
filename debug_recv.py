@@ -79,9 +79,9 @@ class Unit(method):
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    #st.settimeout(30)
+    st.settimeout(30)
     conn,addr = 0,0
-    #sk.settimeout(30)
+    sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
         if(mode == 3):
@@ -176,10 +176,10 @@ class Unit(method):
             return res
                         
         def sendControlCenter(self,oneFrame):
-            afterChrunk = self.tcpLayer.wrapChunk(self,oneFrame)
-            sendBin = self.frames2Bin(afterChrunk)
+            sendBin = self.frames2Bin(oneFrame)
             sendBytes = b'\xee\xff'+self.bin2Bytes(sendBin)+b'\xff\xee'
             self.tcp.sendSocket.sendto(sendBytes,self.dest)
+
         def recvControlCenter(self,rawBin):
             sourceIp,sourcePort,destIp,destPort = 0,0,0,0
             frameNumber,xorCheckRecv = 0,0
@@ -213,27 +213,45 @@ class Unit(method):
         frameNumber = 0
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
-        Frames = self.bin2Frames(binText,386)
+        Frames = self.bin2Frames(binText,306)#40 Unit,400-40*2-14=
+        dataToSend = []
         while(Frames!=[]):
             if(frameNumber<min(8,len(Frames))):
-                wrappedFrames = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)+Frames[frameNumber]+[self.addXorCheck(Frames[frameNumber])]
-                self.tcpLayer.sendControlCenter(self,wrappedFrames)
+                headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
+                frame = Frames[frameNumber]
+                xorRes = [self.addXorCheck(frame)]
+                wrappedFrames = headers+frame+xorRes
+                wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
+                dataToSend+=wrappedFrames
                 frameNumber+=1
             else:
-                status = self.st.recv(4000).decode()
-                status = status.split('|')[-1].split('.')
+                self.tcpLayer.sendControlCenter(self,dataToSend)
+                dataToSend = []
+                status = self.tcp.conn.recv(40000).decode()
+                status = status.split('|')[-2].split('.')
                 if(status[0]=='ERR'):
                     Frames = Frames[int(status[1]):]
                 elif(status[0]=='ACK'):
                     Frames = Frames[int(status[1])+1:]
                 frameNumber = 0
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
-            
+        print('send is over...')
     def recv(self):
+        rawBytes = b''
         bytesText = b''
+        self.sk.settimeout(1000)
+        firstRecv = self.sk.recv(50000)
         while(1):
-            self.sk.settimeout(0.5)
-            rawBytes = self.sk.recv(50000)
+            rawBytes = b''
+            if(firstRecv!=b''):
+                rawBytes+=firstRecv
+                firstRecv = b''
+            else:
+                self.sk.settimeout(2)
+                try:
+                    rawBytes += self.sk.recv(50000)
+                except:
+                    print('')
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
             if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
@@ -250,3 +268,4 @@ if(__name__ == '__main__'):
     text = ''
     s = A.recv()
     print(s)
+    A.st.close()
