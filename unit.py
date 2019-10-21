@@ -236,6 +236,7 @@ class Unit(method):
                 frameNumber = 0
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
+        self.st.close()
     def recv(self):
         rawBytes = b''
         bytesText = b''
@@ -261,6 +262,7 @@ class Unit(method):
             bytesText+=onebytesText
             #print(bytesText.decode())
         return bytesText.decode()
+        self.st.close()
 
 if(__name__ == '__main__'):
     A = Unit()
