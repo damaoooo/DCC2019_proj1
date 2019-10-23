@@ -92,19 +92,6 @@ class Unit(method):
             destIp = input('input opposite IP->')
             destPort = input('input opposite Port->')
             self.dest = (destIp,int(destPort))
-            sendOrRecv = int(input('1.send 2.receive->'))
-            if(sendOrRecv == 1):
-                self.st.bind(('127.0.0.1',34566))
-                self.st.listen(5)
-                print('waiting for connection...')
-                self.conn,self.addr = self.st.accept()
-                print(self.addr,'is connected!')
-                self.sk.bind(self.local)
-            elif(sendOrRecv == 2):
-                self.st.bind(('127.0.0.1',34567))
-                print('trying to connect...')
-                self.st.connect(('127.0.0.1',34566))
-                self.sk.bind(self.local)
         elif(mode == 1):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
@@ -249,6 +236,7 @@ class Unit(method):
                 frameNumber = 0
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
+        self.st.close()
     def recv(self):
         rawBytes = b''
         bytesText = b''
@@ -274,6 +262,7 @@ class Unit(method):
             bytesText+=onebytesText
             #print(bytesText.decode())
         return bytesText.decode()
+        self.st.close()
 
 if(__name__ == '__main__'):
     A = Unit()
