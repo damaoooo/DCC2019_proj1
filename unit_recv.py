@@ -52,6 +52,9 @@ class method():
         return res
     def bin2Bytes(self,binText):
         res = b''
+        if(isinstance(binText,int)):
+            print('ERROR!',binText)
+            a = input('1')
         length = len(binText)
         while(length>0):
             singleByte = unhexlify(hex(eval('0b'+binText[0:4]))[2:]+hex(eval('0b'+binText[4:8]))[2:])
@@ -76,6 +79,7 @@ class method():
         else:
             return -1
 class Unit(method):
+    system('cls')
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     sk.settimeout(30)
@@ -178,6 +182,8 @@ class Unit(method):
             status = []
             for oneFrames in Frames:
                 afterParse = self.tcp.parseChunk(oneFrames)
+                if(afterParse==[]):
+                    a = input('ERROR IN PARSE!')
                 frameNumber = eval('0b'+afterParse[0])
                 afterParse.pop(0)
                 sourceIp,sourcePort = afterParse[0:4],afterParse[4:6]
@@ -234,15 +240,25 @@ class Unit(method):
             # onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
     def recv(self):
         recvText = b''
+        size = 16
+        frameNumber = 0
         while(1):
             rawBytes = self.sk.recv(40000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
+            if(afterDirect==-1):
+                self.sk.sendto(b'\xee\xff'+('ERR.'+str((frameNumber+1)%size)).encode()+b'\xff\xee',self.dest)
+                continue
             if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
             recvText+=onebytesText
-            self.sk.sendto(b'\xee\xff'+str(status[0]).encode()+b'\xff\xee',self.dest)
+            statusInfo = str(status[0]).encode()
+            waitForChunk = self.bin2Frames(self.bytes2Bin(statusInfo),8)
+            afterChunk = self.tcpLayer.wrapChunk(self,waitForChunk)
+            statusBytes = self.bin2Bytes(self.frames2Bin(afterChunk[0]))
+            self.sk.sendto(b'\xee\xff'+statusBytes+b'\xff\xee',self.dest)
+            frameNumber=int(status[0].split('.')[1])
         return recvText.decode()
             
 
