@@ -207,33 +207,38 @@ class Unit(method):
                 bytesText += self.bin2Bytes(binText)
                 status.append('ACK.'+str(frameNumber))
             return bytesText,status
-
-
+    def dataWrap(self,frame,frameNumber):
+        headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
+        xorRes = [self.addXorCheck(frame)]
+        wrappedFrames = headers+frame+xorRes
+        wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
+        return wrappedFrames
     def send(self,Text):
+        size = 16
         frameNumber = 0
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
         Frames = self.bin2Frames(binText,306)#40 Unit,400-40*2-14=
-        dataToSend = []
-        while(Frames!=[]):
-            if(frameNumber<min(8,len(Frames))):
-                headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
-                frame = Frames[frameNumber]
-                xorRes = [self.addXorCheck(frame)]
-                wrappedFrames = headers+frame+xorRes
-                wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
-                dataToSend+=wrappedFrames
-                frameNumber+=1
-            else:
-                self.tcpLayer.sendControlCenter(self,dataToSend)
-                dataToSend = []
-                status = self.tcp.conn.recv(40000).decode()
-                status = status.split('|')[-2].split('.')
-                if(status[0]=='ERR'):
-                    Frames = Frames[int(status[1]):]
-                elif(status[0]=='ACK'):
-                    Frames = Frames[int(status[1])+1:]
-                frameNumber = 0
+        #initial send
+        startPtr,currentPtr = 0,0
+        endPtr = min(size,len(Frames))
+        windows = [0]*size
+        for i in range(endPtr):
+            windows[i] = Frames[i]
+            self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[i],i))
+        while(1):
+            respond = self.tcp.sendSocket.recv(1024)
+            respond = self.tcpLayer.recvControlCenter(self,self.bytes2Bin(respond))[0].decode()
+            if(respond.split('.')[0]=='ACK'):
+                carryNumber = int(respond.split('.')[1])-startPtr%size+1
+                if(carryNumber)<0:
+                    carryNumber+=size
+                lastendPtr = endPtr
+                endPtr = min(endPtr+carryNumber,len(Frames))
+                startPtr +=carryNumber
+                for i in range(lastendPtr,endPtr):
+                    self.tcpLayer.sendControlCenter(self,self.dataWrap(Frames[i],i%size))
+                    windows[i%size]=Frames[i]
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
         self.st.close()
@@ -267,7 +272,7 @@ class Unit(method):
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    #text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
-    text = input('input what you want to say:')
+    text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
+    #text = input('input what you want to say:')
     A.send(text)
     A.st.close()
