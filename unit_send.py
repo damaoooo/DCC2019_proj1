@@ -78,9 +78,6 @@ class method():
 class Unit(method):
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    st.settimeout(30)
-    conn,addr = 0,0
     sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
@@ -95,28 +92,18 @@ class Unit(method):
         elif(mode == 1):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
-            self.st.bind(('127.0.0.1',34566))
-            self.st.listen(5)
-            print('waiting for connection...')
-            self.conn,self.addr = self.st.accept()
-            print(self.addr,'is connected!')
             self.sk.bind(self.local)
         elif(mode == 2):
             self.local = ('127.0.0.1',12400)
             self.dest = ('127.0.0.1',12100)
-            self.st.bind(('127.0.0.1',34567))
-            print('trying to connect...')
-            self.st.connect(('127.0.0.1',34566))
             self.sk.bind(self.local)
-        self.tcp = self.tcpLayer(self.local,self.dest,self.sk,self.st,self.conn)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
     class tcpLayer(method):
-        frameLength,frameNumber,local,dest,sendSocket,statusSocket,conn = 0,0,0,0,0,0,0
-        def __init__(self,local,dest,sendsocket,statussocket,conn,*argc,**kwargs):
+        frameLength,frameNumber,local,dest,sendSocket = 0,0,0,0,0
+        def __init__(self,local,dest,sendsocket,*argc,**kwargs):
             self.local = local
             self.dest = dest
             self.sendSocket = sendsocket
-            self.statusSocket = statussocket
-            self.conn = conn
         def getHeaders(self,sourceIp,sourcePort,destIp,destPort,frameNumber):
             res =  []
             res.append(bin(frameNumber)[2:].zfill(8))
@@ -227,8 +214,11 @@ class Unit(method):
             windows[i] = Frames[i]
             self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[i],i))
         while(1):
-            respond = self.tcp.sendSocket.recv(1024)
-            respond = self.tcpLayer.recvControlCenter(self,self.bytes2Bin(respond))[0].decode()
+            if(startPtr==endPtr):
+                break
+            respondRaw = self.bytes2Bin(self.tcp.sendSocket.recv(1024))
+            respondbin = self.direction(respondRaw,bin(0xeeff)[2:],bin(0xffee)[2:])
+            respond = self.bin2Bytes(respondbin).decode()
             if(respond.split('.')[0]=='ACK'):
                 carryNumber = int(respond.split('.')[1])-startPtr%size+1
                 if(carryNumber)<0:
@@ -239,9 +229,10 @@ class Unit(method):
                 for i in range(lastendPtr,endPtr):
                     self.tcpLayer.sendControlCenter(self,self.dataWrap(Frames[i],i%size))
                     windows[i%size]=Frames[i]
+            elif(respond.split('.')[0]=='ERR'):
+                self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[respond.split('.')[1]],respond.split('.')[1]%size))
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
-        self.st.close()
     def recv(self):
         rawBytes = b''
         bytesText = b''
@@ -263,16 +254,13 @@ class Unit(method):
             if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
-            self.st.send(('|'+'|'.join(status)+'|').encode())
             bytesText+=onebytesText
             #print(bytesText.decode())
         return bytesText.decode()
-        self.st.close()
 
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
+    text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '
     #text = input('input what you want to say:')
     A.send(text)
-    A.st.close()

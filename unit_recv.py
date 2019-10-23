@@ -78,9 +78,6 @@ class method():
 class Unit(method):
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    st.settimeout(30)
-    conn,addr = 0,0
     sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
@@ -95,28 +92,18 @@ class Unit(method):
         elif(mode == 1):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
-            self.st.bind(('127.0.0.1',34566))
-            self.st.listen(5)
-            print('waiting for connection...')
-            self.conn,self.addr = self.st.accept()
-            print(self.addr,'is connected!')
             self.sk.bind(self.local)
         elif(mode == 2):
             self.local = ('127.0.0.1',12400)
             self.dest = ('127.0.0.1',12100)
-            self.st.bind(('127.0.0.1',34567))
-            print('trying to connect...')
-            self.st.connect(('127.0.0.1',34566))
             self.sk.bind(self.local)
-        self.tcp = self.tcpLayer(self.local,self.dest,self.sk,self.st,self.conn)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
     class tcpLayer(method):
-        frameLength,frameNumber,local,dest,sendSocket,statusSocket,conn = 0,0,0,0,0,0,0
-        def __init__(self,local,dest,sendsocket,statussocket,conn,*argc,**kwargs):
+        frameLength,frameNumber,local,dest,sendSocket = 0,0,0,0,0
+        def __init__(self,local,dest,sendsocket,*argc,**kwargs):
             self.local = local
             self.dest = dest
             self.sendSocket = sendsocket
-            self.statusSocket = statussocket
-            self.conn = conn
         def getHeaders(self,sourceIp,sourcePort,destIp,destPort,frameNumber):
             res =  []
             res.append(bin(frameNumber)[2:].zfill(8))
@@ -168,7 +155,10 @@ class Unit(method):
                         continue
                     elif(len(x)==len(y)):
                         for i in range(len(x)):
-                            data[x[i]][y[i]]^=1
+                            errorData = list(data[x[i]])
+                            errorData[y[i]] = str(int(errorData[y[i]])^1)
+                            patchData = ''.join(errorData)
+                            data[x[i]]=patchData
                 chunks[chunkIndex] = data
             res = []
             for i in chunks:
@@ -236,33 +226,25 @@ class Unit(method):
                 frameNumber = 0
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
-        self.st.close()
+
+            # rawBins = self.bytes2Bin(rawBytes)
+            # afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
+            # if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
+            #     break
+            # onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
     def recv(self):
-        rawBytes = b''
-        bytesText = b''
-        self.sk.settimeout(1000)
-        firstRecv = self.sk.recv(50000)
+        recvText = b''
         while(1):
-            rawBytes = b''
-            if(firstRecv!=b''):
-                rawBytes+=firstRecv
-                firstRecv = b''
-            else:
-                self.sk.settimeout(2)
-                try:
-                    rawBytes += self.sk.recv(50000)
-                except:
-                    print('')
+            rawBytes = self.sk.recv(40000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
             if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
-            self.st.send(('|'+'|'.join(status)+'|').encode())
-            bytesText+=onebytesText
-            #print(bytesText.decode())
-        return bytesText.decode()
-        self.st.close()
+            recvText+=onebytesText
+            self.sk.sendto(b'\xee\xff'+str(status[0]).encode()+b'\xff\xee',self.dest)
+        return recvText.decode()
+            
 
 if(__name__ == '__main__'):
     A = Unit()
@@ -271,4 +253,3 @@ if(__name__ == '__main__'):
     # text = input('input what you want to say:')
     # A.send(text)
     print(A.recv())
-    A.st.close()
