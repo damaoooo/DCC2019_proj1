@@ -54,7 +54,7 @@ class method():
         res = b''
         if(isinstance(binText,int)):
             print('ERROR!',binText)
-            a = input('1')
+            #a = input('1')
         length = len(binText)
         while(length>0):
             singleByte = unhexlify(hex(eval('0b'+binText[0:4]))[2:]+hex(eval('0b'+binText[4:8]))[2:])
@@ -183,7 +183,7 @@ class Unit(method):
             for oneFrames in Frames:
                 afterParse = self.tcp.parseChunk(oneFrames)
                 if(afterParse==[]):
-                    a = input('ERROR IN PARSE!')
+                    print('ERROR IN PARSE!')
                 frameNumber = eval('0b'+afterParse[0])
                 afterParse.pop(0)
                 sourceIp,sourcePort = afterParse[0:4],afterParse[4:6]
@@ -255,7 +255,7 @@ class Unit(method):
             recvText+=onebytesText
             statusInfo = str(status[0]).encode()
             waitForChunk = self.bin2Frames(self.bytes2Bin(statusInfo),8)
-            afterChunk = self.tcpLayer.wrapChunk(self,waitForChunk)
+            afterChunk = self.tcpLayer.wrapChunk(self,waitForChunk[0])
             statusBytes = self.bin2Bytes(self.frames2Bin(afterChunk[0]))
             self.sk.sendto(b'\xee\xff'+statusBytes+b'\xff\xee',self.dest)
             frameNumber=int(status[0].split('.')[1])

@@ -156,7 +156,10 @@ class Unit(method):
                         continue
                     elif(len(x)==len(y)):
                         for i in range(len(x)):
-                            data[x[i]][y[i]]^=1
+                            errorData = list(data[x[i]])
+                            errorData[y[i]] = str(int(errorData[y[i]])^1)
+                            patchData = ''.join(errorData)
+                            data[x[i]]=patchData
                 chunks[chunkIndex] = data
             res = []
             for i in chunks:
@@ -223,7 +226,7 @@ class Unit(method):
                 print('ack lost!')
                 continue
             respondFrame = self.bin2Frames(respondbin,10)
-            afterParse = self.tcpLayer.parseChunk(self,respondFrame)
+            afterParse = self.tcpLayer.parseChunk(self,respondFrame[0])
             respond = self.bin2Bytes(self.frames2Bin(afterParse)).decode()
             print(respond)
             if(sum([ord(x) for x in list(respond.split('.')[0])])-sum([ord(x) for x in list('ACK')])<=8):
@@ -269,7 +272,7 @@ class Unit(method):
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
-    text = '1234567890hello中文\n'*1000
+    text = '1234567890hello字\n'*300
     #text = 'Thomas Jefferson and James Madison met in 1776. Could it have been any other year? They worked together starting then to further American Revolution and later to shape the new scheme of government. From the work sprang a friendship perhaps incomparable in intimacy1 and the trustfulness of collaboration2 and induration. It lasted 50 years. It included pleasure and utility but over and above them, there were shared purpose, a common end and an enduring goodness on both sides. Four and a half months before he died, when he was ailing3, debt-ridden, and worried about his impoverished4 family, Jefferson wrote to his longtime friend. His words and Madison  s reply remind us that friends are friends until death. They also remind us that sometimes a friendship has a bearing on things larger than the friendship itself, for has there ever been a friendship of greater public consequence than this one? The friendship which has subsisted5 between us now half a century, the harmony of our po1itical principles and pursuits have been sources of constant happiness to me through that long period. If ever the earth has beheld6 a system of administration conducted with a single and steadfast7 eye to the general interest and happiness of those committed to it, one which, protected by truth, can never known reproach, it is that to which our lives have been devoted8. To myself you have been a pillar of support throughout life. Take care of me when dead and be assured that I should leave with you my last affections. A week later Madison replied- You cannot look back to the long period of our private friendship and political harmony with more affecting recollections than I do. If they are a source of pleasure to you, what aren  t they not to be to me? We cannot be deprived of the happy consciousness of the pure devotion to the public good with Which we discharge the trust committed to us and I indulge a confidence that sufficient evidence will find in its way to another generation to ensure, after we are gone, whatever of justice may be withheld9 whilst we are here.  '*10
     #text = input('input what you want to say:')
     A.send(text)

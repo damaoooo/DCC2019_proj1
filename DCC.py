@@ -52,6 +52,9 @@ class method():
         return res
     def bin2Bytes(self,binText):
         res = b''
+        if(isinstance(binText,int)):
+            print('ERROR!',binText)
+            #a = input('1')
         length = len(binText)
         while(length>0):
             singleByte = unhexlify(hex(eval('0b'+binText[0:4]))[2:]+hex(eval('0b'+binText[4:8]))[2:])
@@ -76,12 +79,10 @@ class method():
         else:
             return -1
 class Unit(method):
+    system('cls')
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    st = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    #st.settimeout(30)
-    conn,addr = 0,0
-    #sk.settimeout(30)
+    sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
         if(mode == 3):
@@ -95,28 +96,18 @@ class Unit(method):
         elif(mode == 1):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
-            self.st.bind(('127.0.0.1',34566))
-            self.st.listen(5)
-            print('waiting for connection...')
-            self.conn,self.addr = self.st.accept()
-            print(self.addr,'is connected!')
             self.sk.bind(self.local)
         elif(mode == 2):
             self.local = ('127.0.0.1',12400)
             self.dest = ('127.0.0.1',12100)
-            self.st.bind(('127.0.0.1',34567))
-            print('trying to connect...')
-            self.st.connect(('127.0.0.1',34566))
             self.sk.bind(self.local)
-        self.tcp = self.tcpLayer(self.local,self.dest,self.sk,self.st,self.conn)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
     class tcpLayer(method):
-        frameLength,frameNumber,local,dest,sendSocket,statusSocket,conn = 0,0,0,0,0,0,0
-        def __init__(self,local,dest,sendsocket,statussocket,conn,*argc,**kwargs):
+        frameLength,frameNumber,local,dest,sendSocket = 0,0,0,0,0
+        def __init__(self,local,dest,sendsocket,*argc,**kwargs):
             self.local = local
             self.dest = dest
             self.sendSocket = sendsocket
-            self.statusSocket = statussocket
-            self.conn = conn
         def getHeaders(self,sourceIp,sourcePort,destIp,destPort,frameNumber):
             res =  []
             res.append(bin(frameNumber)[2:].zfill(8))
@@ -168,7 +159,10 @@ class Unit(method):
                         continue
                     elif(len(x)==len(y)):
                         for i in range(len(x)):
-                            data[x[i]][y[i]]^=1
+                            errorData = list(data[x[i]])
+                            errorData[y[i]] = str(int(errorData[y[i]])^1)
+                            patchData = ''.join(errorData)
+                            data[x[i]]=patchData
                 chunks[chunkIndex] = data
             res = []
             for i in chunks:
@@ -179,6 +173,7 @@ class Unit(method):
             sendBin = self.frames2Bin(oneFrame)
             sendBytes = b'\xee\xff'+self.bin2Bytes(sendBin)+b'\xff\xee'
             self.tcp.sendSocket.sendto(sendBytes,self.dest)
+
         def recvControlCenter(self,rawBin):
             sourceIp,sourcePort,destIp,destPort = 0,0,0,0
             frameNumber,xorCheckRecv = 0,0
@@ -187,6 +182,8 @@ class Unit(method):
             status = []
             for oneFrames in Frames:
                 afterParse = self.tcp.parseChunk(oneFrames)
+                if(afterParse==[]):
+                    print('ERROR IN PARSE!')
                 frameNumber = eval('0b'+afterParse[0])
                 afterParse.pop(0)
                 sourceIp,sourcePort = afterParse[0:4],afterParse[4:6]
@@ -206,54 +203,74 @@ class Unit(method):
                 bytesText += self.bin2Bytes(binText)
                 status.append('ACK.'+str(frameNumber))
             return bytesText,status
-
-
+    def dataWrap(self,frame,frameNumber):
+            headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
+            xorRes = [self.addXorCheck(frame)]
+            wrappedFrames = headers+frame+xorRes
+            wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
+            return wrappedFrames
     def send(self,Text):
+        size = 16
         frameNumber = 0
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
         Frames = self.bin2Frames(binText,306)#40 Unit,400-40*2-14=
-        dataToSend = []
-        while(Frames!=[]):
-            if(frameNumber<min(8,len(Frames))):
-                headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
-                frame = Frames[frameNumber]
-                xorRes = [self.addXorCheck(frame)]
-                wrappedFrames = headers+frame+xorRes
-                wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
-                dataToSend+=wrappedFrames
-                frameNumber+=1
-            else:
-                self.tcpLayer.sendControlCenter(self,dataToSend)
-                dataToSend = []
-                status = self.tcp.conn.recv(40000).decode()
-                status = status.split('|')[-2].split('.')
-                if(status[0]=='ERR'):
-                    Frames = Frames[int(status[1]):]
-                elif(status[0]=='ACK'):
-                    Frames = Frames[int(status[1])+1:]
-                frameNumber = 0
+        #initial send
+        startPtr,currentPtr = 0,0
+        endPtr = min(size,len(Frames))
+        windows = [0]*size
+        for i in range(endPtr):
+            windows[i] = Frames[i]
+            self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[i],i))
+        while(1):
+            if(startPtr==endPtr):
+                break
+            respondRaw = self.bytes2Bin(self.tcp.sendSocket.recv(1024))
+            respondbin = self.direction(respondRaw,bin(0xeeff)[2:],bin(0xffee)[2:])
+            if(respondbin==-1):
+                print('ack lost!')
+                continue
+            respondFrame = self.bin2Frames(respondbin,10)
+            afterParse = self.tcpLayer.parseChunk(self,respondFrame[0])
+            respond = self.bin2Bytes(self.frames2Bin(afterParse)).decode()
+            print(respond)
+            if(sum([ord(x) for x in list(respond.split('.')[0])])-sum([ord(x) for x in list('ACK')])<=8):
+                #print(respond.split('.'))
+                carryNumber = int(respond.split('.')[1])-startPtr%size+1
+                if(carryNumber)<0:
+                    carryNumber+=size
+                lastendPtr = endPtr
+                endPtr = min(endPtr+carryNumber,len(Frames))
+                startPtr +=carryNumber
+                for i in range(lastendPtr,endPtr):
+                    self.tcpLayer.sendControlCenter(self,self.dataWrap(Frames[i],i%size))
+                    windows[i%size]=Frames[i]
+            elif(respond.split('.')[0]=='ERR'):
+                self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[int(respond.split('.')[1])],int(respond.split('.')[1])%size))
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
     def recv(self):
-        bytesText = b''
-        rawBytes = b''
+        recvText = b''
+        size = 16
+        frameNumber = 0
         while(1):
-            self.sk.settimeout(0.5)
-            try:
-                rawBytes += self.sk.recv(50000)
-            except:
-                print('')
+            rawBytes = self.sk.recv(40000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
+            if(afterDirect==-1):
+                self.sk.sendto(b'\xee\xff'+('ERR.'+str((frameNumber+1)%size)).encode()+b'\xff\xee',self.dest)
+                continue
             if(self.bin2Bytes(afterDirect)==b'\xad\xff\xda'):
                 break
             onebytesText,status = self.tcpLayer.recvControlCenter(self,afterDirect)
-            self.st.send(('|'+'|'.join(status)+'|').encode())
-            bytesText+=onebytesText
-            #print(bytesText.decode())
-        return bytesText.decode()
-
+            recvText+=onebytesText
+            statusInfo = str(status[0]).encode()
+            waitForChunk = self.bin2Frames(self.bytes2Bin(statusInfo),8)
+            afterChunk = self.tcpLayer.wrapChunk(self,waitForChunk[0])
+            statusBytes = self.bin2Bytes(self.frames2Bin(afterChunk[0]))
+            self.sk.sendto(b'\xee\xff'+statusBytes+b'\xff\xee',self.dest)
+            frameNumber=int(status[0].split('.')[1])
+        return recvText.decode()
 if(__name__ == '__main__'):
     A = Unit()
     A.start()
