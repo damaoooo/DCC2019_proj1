@@ -159,7 +159,10 @@ class Unit(method):
                         continue
                     elif(len(x)==len(y)):
                         for i in range(len(x)):
-                            errorData = list(data[x[i]])
+                            try:
+                                errorData = list(data[x[i]])
+                            except:
+                                print('found ERR!->',data)
                             errorData[y[i]] = str(int(errorData[y[i]])^1)
                             patchData = ''.join(errorData)
                             data[x[i]]=patchData
@@ -231,12 +234,19 @@ class Unit(method):
                 print('ack lost!')
                 continue
             respondFrame = self.bin2Frames(respondbin,10)
-            afterParse = self.tcpLayer.parseChunk(self,respondFrame[0])
+            try:
+                afterParse = self.tcpLayer.parseChunk(self,respondFrame[0])
+            except:
+                print('parse Error!->',respondFrame)
+                continue
             respond = self.bin2Bytes(self.frames2Bin(afterParse)).decode()
             print(respond)
             if(sum([ord(x) for x in list(respond.split('.')[0])])-sum([ord(x) for x in list('ACK')])<=8):
                 #print(respond.split('.'))
-                carryNumber = int(respond.split('.')[1])-startPtr%size+1
+                try:
+                    carryNumber = int(respond.split('.')[1])-startPtr%size+1
+                except:
+                    continue
                 if(carryNumber)<0:
                     carryNumber+=size
                 lastendPtr = endPtr
@@ -246,7 +256,11 @@ class Unit(method):
                     self.tcpLayer.sendControlCenter(self,self.dataWrap(Frames[i],i%size))
                     windows[i%size]=Frames[i]
             elif(respond.split('.')[0]=='ERR'):
-                self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[int(respond.split('.')[1])],int(respond.split('.')[1])%size))
+                try:
+                    self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[int(respond.split('.')[1])],int(respond.split('.')[1])%size))
+                except:
+                    print('no ERR number!')
+                    continue
         self.sk.sendto(b'\xee\xff\xad\xff\xda\xff\xee',self.dest)
         print('send is over...')
     def recv(self):
