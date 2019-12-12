@@ -82,9 +82,9 @@ class Unit(method):
     system('cls')
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    sk.settimeout(30)
+    sk.settimeout(15)
     def start(self):
-        mode = int(input('select your mode:1.debug-1 2.debug-2 3.test'))
+        mode = int(input('select your mode:1.debug-1 2.debug-2 3.test 4.debug-4 5. debug-5'))
         if(mode == 3):
             localIp = input('input your IP->')
             localPort = input('input your Port->')
@@ -93,6 +93,9 @@ class Unit(method):
             destIp = input('input opposite IP->')
             destPort = input('input opposite Port->')
             self.dest = (destIp,int(destPort))
+            datalinkIp = input('input the datalink IP->')
+            dataPort = input('input the datalink Port->')
+            self.datalink = (datalinkIp,int(dataPort))
         elif(mode == 1):
             self.local = ('127.0.0.1',11400)
             self.dest = ('127.0.0.1',11100)
@@ -103,6 +106,24 @@ class Unit(method):
             self.dest = ('127.0.0.1',12100)
             self.datalink = self.dest
             self.sk.bind(self.local)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
+    def debug1(self):
+        self.local = ('127.0.0.1',11200)
+        self.dest = ('127.0.0.1',13100)
+        self.datalink=('127.0.0.1',11100)
+        self.sk.bind(self.local)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
+    def debug2(self):
+        self.local = ('127.0.0.1',13200)
+        self.dest = ('127.0.0.1',11100)
+        self.datalink=('127.0.0.1',13100)
+        self.sk.bind(self.local)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
+    def debug3(self):
+        self.local = ('127.0.0.1',12200)
+        self.dest = ('127.0.0.1',11100)
+        self.datalink=('127.0.0.1',12100)
+        self.sk.bind(self.local)
         self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
     class tcpLayer(method):
         frameLength,frameNumber,local,dest,sendSocket = 0,0,0,0,0
@@ -206,20 +227,21 @@ class Unit(method):
                 #print(isBad,frameNumber)
                 if(isBad==False):
                     status.append('ERR.'+str(frameNumber))
-                    return bytesText,status
+                    return bytesText,status,Info
                 binText = self.frames2Bin(afterParse)
                 bytesText += self.bin2Bytes(binText)
                 status.append('ACK.'+str(frameNumber))
             return bytesText,status,Info
     def dataWrap(self,frame,frameNumber):
-            headers = self.tcp.getHeaders(self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
-            xorRes = [self.addXorCheck(frame)]
-            wrappedFrames = headers+frame+xorRes
-            wrappedFrames = self.tcp.wrapChunk(wrappedFrames)
-            return wrappedFrames
+        headers = self.tcpLayer.getHeaders(self,self.local[0],self.local[1],self.dest[0],self.dest[1],frameNumber)
+        xorRes = [self.addXorCheck(frame)]
+        wrappedFrames = headers+frame+xorRes
+        wrappedFrames = self.tcpLayer.wrapChunk(self,wrappedFrames)
+        return wrappedFrames
     def send(self,Text):
-        size = 16
+        size = 256
         frameNumber = 0
+        lastendPtr = 0
         bytesText = method.text2Bytes(self,Text)
         binText = method.bytes2Bin(self,bytesText)
         Frames = self.bin2Frames(binText,306)#40 Unit,400-40*2-14=
@@ -229,6 +251,7 @@ class Unit(method):
         windows = [0]*size
         for i in range(endPtr):
             windows[i] = Frames[i]
+            time.sleep(0.05)
             self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[i],i))
         while(1):
             if(startPtr==endPtr):
@@ -274,6 +297,9 @@ class Unit(method):
                     self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[int(respond.split('.')[1])+1],int(respond.split('.')[1])%size))
                 except:
                     print('no ERR number!')
+                    for i in range(lastendPtr,endPtr):
+                        self.tcpLayer.sendControlCenter(self,self.dataWrap(Frames[i],i%size))
+                        windows[i%size]=Frames[i]
                     continue
         finBytes = b'\xad\xff\xda'
         finAfterChunk = self.dataWrap(self.bin2Frames(self.bytes2Bin(finBytes),400)[0],frameNumber)
@@ -284,6 +310,7 @@ class Unit(method):
         size = 16
         frameNumber = 0
         while(1):
+            time.sleep(0.05)
             rawBytes = self.sk.recv(40000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
