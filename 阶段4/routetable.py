@@ -99,6 +99,7 @@ if __name__ == "__main__":
     addTable(('192.1.2.0',12000),('192.1.2.1',12100),1,tablesC)
     addTable(('192.1.4.0',14000),('192.1.4.1',14100),1,tablesC)
     addTable(('192.1.3.0',13000),('192.1.3.1',13100),1,tablesD)
+    addTable(('192.1.3.1',13001),('192.1.3.1',13100),1,tablesD)
     print('tables A')
     showTable(tablesA)
     print('tables B')
