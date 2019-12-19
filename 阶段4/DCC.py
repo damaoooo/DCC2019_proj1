@@ -82,7 +82,7 @@ class Unit(method):
     system('cls')
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    sk.settimeout(15)
+    sk.settimeout(30)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test 4.debug-4 5. debug-5'))
         if(mode == 3):
@@ -122,7 +122,7 @@ class Unit(method):
     def debug3(self):
         self.local = ('127.0.0.1',12200)
         self.dest = ('127.0.0.1',11100)
-        self.datalink=('127.0.0.1',12100)
+        self.datalink = ('127.0.0.1',12100)
         self.sk.bind(self.local)
         self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
     def debug4(self, local, dest, datalink):
@@ -130,10 +130,10 @@ class Unit(method):
         self.dest = dest
         self.datalink = datalink
         self.sk.bind(self.local)
-        self.tcp = self.tcpLayer(self.local,self,dest,self.sk)
+        self.tcp = self.tcpLayer(self.local,self.dest,self.sk)
     class tcpLayer(method):
         frameLength,frameNumber,local,dest,sendSocket = 0,0,0,0,0
-        def __init__(self,local,dest,sendsocket,*argc,**kwargs):
+        def __init__(self,local,dest,sendsocket):
             self.local = local
             self.dest = dest
             self.sendSocket = sendsocket

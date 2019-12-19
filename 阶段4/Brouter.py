@@ -20,17 +20,19 @@ def isBytes(input):
 
 #配置交换机表
 switchtable = {
-    '127.0.0.1:12100':'127.0.0.1:11102',
-     '127.0.0.1:11200':'127.0.0.1:11101'
+    '127.0.0.1:11100':'127.0.0.1:12101',
+     '127.0.0.1:12200':'127.0.0.1:12102',
+     '127.0.0.1:13100':'127.0.0.1:12103'
      }
 
 #初始化路由表
 Atable = []
-routetable.addTable(('127.0.0.1',12000),("127.0.0.1",12100),1,Atable)
+routetable.addTable(('127.0.0.1',11000),("127.0.0.1",11100),1,Atable)
+routetable.addTable(('127.0.0.1',13000),("127.0.0.1",13100),1,Atable)
 
 a1 = DCC.Unit()
 #第一个是本地，后两个乱绑定，不会动用它里面的发送函数
-local = ('127.0.0.1',11100)
+local = ('127.0.0.1',12100)
 a1.debug4(local,('127.0.0.1',19986),('127.0.0.1',19985)) 
 
 readable = [a1.sk]
@@ -42,8 +44,11 @@ while(1):
         packaged = routetable.packageTables(Atable).encode()
         waitForChunk = a1.bin2Frames(a1.bytes2Bin(packaged),306)
         afterChunk = a1.dataWrap(waitForChunk[0],0)
-        a1.datalink = ('127.0.0.1',11102)
-        a1.dest = ('127.0.0.1',12100)
+        a1.datalink = ('127.0.0.1',12101)
+        a1.dest = ('127.0.0.1',11100)
+        a1.tcpLayer.sendControlCenter(a1,afterChunk)
+        a1.datalink = ('127.0.0.1',12103)
+        a1.dest = ('127.0.0.1',13100)
         a1.tcpLayer.sendControlCenter(a1,afterChunk)
         print('send a copy of table')
     rlist, wlist, elist = select.select(readable,[],[],0.5)

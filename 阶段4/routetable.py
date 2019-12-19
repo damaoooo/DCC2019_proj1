@@ -91,6 +91,13 @@ def unpackageTables(rawString):
             cost = int(split[i])
             addTable(dest,via,cost,tables)
     return tables
+
+def findTables(item, tables):
+    for i in tables:
+        if(isInnerWeb(item,i.destination)):
+            return i
+    return False
+
 if __name__ == "__main__":
     tablesA,tablesB,tablesC,tablesD = [],[],[],[]
     addTable(('192.1.2.0',12000),('192.1.2.1',12100),1,tablesA)
@@ -135,3 +142,8 @@ if __name__ == "__main__":
     print('unpackaged tables D')
     unpackage = unpackageTables(packaged)
     showTable(unpackage)
+    print('start to find item...')
+    res = findTables(('192.1.3.1',13100),tablesB)
+    print(res.via)
+    print('one in tables')
+    print(tablesA[0].destination)
