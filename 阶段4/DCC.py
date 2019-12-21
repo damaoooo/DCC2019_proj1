@@ -257,10 +257,10 @@ class Unit(method):
         windows = [0]*size
         for i in range(endPtr):
             windows[i] = Frames[i]
-            time.sleep(0.05)
+            #time.sleep(0.05)
             self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[i],i))
         while(1):
-            time.sleep(0.05)
+            #time.sleep(0.05)
             if(startPtr==endPtr):
                 break
             respondRaw = self.bytes2Bin(self.tcp.sendSocket.recv(40000))
@@ -317,7 +317,7 @@ class Unit(method):
         size = 16
         frameNumber = 0
         while(1):
-            time.sleep(0.05)
+            #time.sleep(0.05)
             rawBytes = self.sk.recv(40000)
             rawBins = self.bytes2Bin(rawBytes)
             afterDirect = self.direction(rawBins,bin(0xeeff)[2:],bin(0xffee)[2:])
