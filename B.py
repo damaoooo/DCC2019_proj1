@@ -26,5 +26,9 @@ while(1):
             sendBytes = b'\xee\xff'+b.bin2Bytes(afterDirect)+b'\xff\xee'
             sks.sendto(sendBytes,dst)
             print(src,dst)
+        elif(src[0]=='255.255.255.255'):
+            for i in table:
+                sendBytes = b'\xee\xff'+b.bin2Bytes(afterDirect)+b'\xff\xee'
+                sks.sendto(sendBytes,table[i])
         else:
             print('no route')
