@@ -54,6 +54,10 @@ def sortTable(tables):
                 tables[j],tables[j+1] = tables[j+1],tables[j]
 
 def showTable(tables):
+    sortTable(tables)
+    for onetable in tables:
+        if(tables.count(onetable)>=2):
+            tables.pop(tables.index(onetable))
     for i in tables:
         print(str(i.destination),str(i.via),str(i.cost))
 
@@ -68,6 +72,7 @@ def mergeTables(localtables, recvtables, local,recvfrom):
                 add+=1
         if(add == len(localtables)):
             addTable(oneRecvTables.destination,recvfrom,oneRecvTables.cost+1,localtables)
+
 
 def packageTables(tables):
     txt = []

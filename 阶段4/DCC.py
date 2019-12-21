@@ -82,7 +82,7 @@ class Unit(method):
     system('cls')
     mode,local,dest,tcp,datalink = 0,0,0,0,0
     sk = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    sk.settimeout(30)
+    sk.settimeout(10)
     def start(self):
         mode = int(input('select your mode:1.debug-1 2.debug-2 3.test 4.debug-4 5. debug-5'))
         if(mode == 3):
@@ -245,7 +245,7 @@ class Unit(method):
         wrappedFrames = self.tcpLayer.wrapChunk(self,wrappedFrames)
         return wrappedFrames
     def send(self,Text):
-        size = 256
+        size = 32
         frameNumber = 0
         lastendPtr = 0
         bytesText = method.text2Bytes(self,Text)
@@ -260,9 +260,10 @@ class Unit(method):
             time.sleep(0.05)
             self.tcpLayer.sendControlCenter(self,self.dataWrap(windows[i],i))
         while(1):
+            time.sleep(0.05)
             if(startPtr==endPtr):
                 break
-            respondRaw = self.bytes2Bin(self.tcp.sendSocket.recv(1024))
+            respondRaw = self.bytes2Bin(self.tcp.sendSocket.recv(40000))
             respondbin = self.direction(respondRaw,bin(0xeeff)[2:],bin(0xffee)[2:])
             if(respondbin==-1):
                 print('ack lost!')

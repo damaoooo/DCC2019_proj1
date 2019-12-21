@@ -34,6 +34,7 @@ local = ('127.0.0.1',11100)
 a1.debug4(local,('127.0.0.1',19986),('127.0.0.1',19985)) 
 
 readable = [a1.sk]
+repeat = ''
 print('start to host......')
 while(1):
     #随机交换路由表
@@ -41,7 +42,7 @@ while(1):
     if(num==3):
         packaged = routetable.packageTables(Atable).encode()
         waitForChunk = a1.bin2Frames(a1.bytes2Bin(packaged),306)
-        afterChunk = a1.dataWrap(waitForChunk[0],0)
+        afterChunk = a1.dataWrap(waitForChunk[0],randint(0,254))
         a1.datalink = ('127.0.0.1',11102)
         a1.dest = ('127.0.0.1',12100)
         a1.tcpLayer.sendControlCenter(a1,afterChunk)
@@ -59,6 +60,12 @@ while(1):
         if(afterDirect==-1):
             print('Frame direct Error!')
             continue
+        #判断是否硬件死循环
+        if(repeat==afterDirect):
+            print('found a repeat frame from repeat, abandon it...')
+            continue
+        else:
+            repeat = afterDirect
         #判断是否读取帧成功
         try:
             respondBytes, status, Info = a1.tcpLayer.recvControlCenter(a1,afterDirect)
@@ -67,10 +74,13 @@ while(1):
         except:
             print('Parse Frame Error! Info->',src)
             continue
+        #判断是否是自己发出来的成环了
+        if(frameFrom == a1.local):
+            print('found a repeat frame, abandon it ...')
+            continue
         #判断是否是路由信息
         if(src == local):
-            print('-'*10,'recv table exchange','-'*10)
-            routetable.showTable(Atable)
+            print('-'*10,'recv Atable exchange','-'*10)
             recvTable = routetable.unpackageTables(respondBytes.decode())
             routetable.mergeTables(Atable,recvTable,local,frameFrom)
             routetable.showTable(Atable)
@@ -82,14 +92,14 @@ while(1):
             sendBins = bin(0xeeff)[2:] + afterDirect + bin(0xffee)[2:]
             sendBytes = a1.bin2Bytes(sendBins)
             sks.sendto(sendBytes, str2tuple(dst))
-            print('route mode',src,'->',dst)
+            print('route mode','from:',frameFrom,' port:->',dst,' dest: ->',src)
         #判断是否是内网
         elif(routetable.isInnerWeb(src,local)):
             dst = switchtable[tuple2str(src)]
             sendBins = bin(0xeeff)[2:] + afterDirect + bin(0xffee)[2:]
             sendBytes = a1.bin2Bytes(sendBins)
             sks.sendto(sendBytes, str2tuple(dst))
-            print('switch mode',src,'->',dst)
+            print('switch mode','from:',frameFrom,' port->',dst,' dest: ->',src)
         else:
-            print('No route Item! ->','from:',frameFrom,'src:',src)
+            print('No route Item! ->','from:',frameFrom,'dest:',src)
             
